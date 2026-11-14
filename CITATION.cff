@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software or the method it implements, please cite it using
+  the metadata below. A versioned dataset with its own DOI will be published
+  on Zenodo at the first tagged release.
+type: software
+title: "watts-per-gigabit: reproducible energy-per-bit measurement of open-source 5G UPFs on Kubernetes"
+abstract: >-
+  An open, reproducible method and harness to measure joules per gigabit of
+  open-source 5G user-plane functions (Open5GS, eUPF, OMEC/SD-Core) running on
+  Kubernetes, with RAPL as the reference, external power measurement for
+  validation, and Kepler per-pod attribution as an object of study.
+authors:
+  - family-names: Cucho
+    given-names: Bryan
+    affiliation: "Télécom Paris"
+repository-code: "https://github.com/BryanTxz10/watts-per-gigabit"
+url: "https://github.com/BryanTxz10/watts-per-gigabit"
+license: Apache-2.0
+version: 0.0.1-dev
+date-released: "2026-11-14"
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.0000000
+    description: "Placeholder; replaced by the Zenodo concept DOI at the first tagged release."
+keywords:
+  - 5G
+  - UPF
+  - energy efficiency
+  - Kubernetes
+  - Kepler
+  - RAPL
+  - Grid'5000
+  - benchmarking
+  - ETSI ES 203 539

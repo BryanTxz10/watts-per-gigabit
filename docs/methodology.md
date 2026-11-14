@@ -1,0 +1,334 @@
+# Methodological plan
+
+**Project:** watts-per-gigabit — energy per bit of open-source 5G UPFs on
+Kubernetes.
+**Author:** Bryan Cucho. **Version:** 0.1, 2026-11-14 (supersedes the
+planning sections of the October 2026 design document).
+**End goal:** a master's research paper (workshop or conference format) and
+the accompanying master's report, backed by an open method, tool and
+dataset; a KubeCon EU 2027 talk is the dissemination vehicle for the
+practitioner audience.
+
+This document is the research plan. Requirements, architecture, test plan,
+ADRs and the data dictionary are separate documents under `docs/` and
+`data/`; this plan references them rather than repeating them.
+
+---
+
+## 1. Purpose, scope and research questions
+
+### 1.1 Purpose
+
+Deliver an open, reproducible method to measure how many joules it costs to
+move one gigabit through an open-source 5G user-plane function (UPF) running
+on Kubernetes, validated against a hardware reference (RAPL) and an external
+power measurement, and use it to compare three UPF implementations on
+identical hardware. The value is the comparison between UPFs and the
+validation of the measurement chain, not the absolute watts.
+
+### 1.2 Problem
+
+European operators report energy savings in the 5G core with proprietary
+software, but there is no open method to measure the same thing on
+Kubernetes. Public comparisons of open-source UPFs measure throughput and
+CPU, not energy. Kepler, the CNCF tool for per-pod energy attribution, has
+not been validated on a telco data plane, whose work (interrupts, polling,
+XDP, DPDK busy loops) is unlike the application workloads it was designed
+around.
+
+### 1.3 Scope
+
+| In scope | Out of scope |
+| --- | --- |
+| User plane (UPF) under controlled load | Real RAN, radio, physical UEs |
+| Three implementations: Open5GS UPF (kernel), eUPF (eBPF/XDP), OMEC/SD-Core UPF (DPDK / AF_PACKET) | Control-plane energy |
+| Per-CPU-package, per-pod and whole-node energy | Multi-node UPF scaling |
+| CPU-level mitigations (governor, C-states, core count) | Developing a new UPF |
+| Two platforms: Grid'5000 (primary), home bench (secondary) | NICs above 25 GbE |
+
+### 1.4 Research questions
+
+| RQ | Question |
+| --- | --- |
+| RQ1 | How does the energy cost per bit of open-source UPFs differ on identical hardware, and how does it depend on load level and packet size? |
+| RQ2 | How accurately does Kepler attribute power to a UPF pod in a data-plane workload, relative to RAPL ΔP and external power? |
+| RQ3 | Which CPU-level configuration changes reduce UPF energy per bit without violating a loss/latency SLA? |
+| RQ4 | Can an ETSI ES 203 539-style laboratory method be reproduced end to end with open-source tooling on Kubernetes? |
+
+### 1.5 Working hypotheses
+
+Inferred from the design document; to be sharpened after the integration
+report (E3.4) and before the measurement campaign.
+
+| ID | Hypothesis | Primary evidence |
+| --- | --- | --- |
+| H1 | UPFs differ markedly in idle and low-load power: a busy-polling data plane (DPDK) consumes close to its full-load power at 0 % load, while kernel and XDP paths are closer to proportional. | TC-01, TC-06, TC-08 at 0–10 % |
+| H2 | Energy per bit decreases with load and with packet size for all UPFs, but the ranking between UPFs changes across the load range and between 128 B and 1400 B packets. | TC-08, TC-11 |
+| H3 | Kepler's per-pod attribution deviates substantially from RAPL ΔP for data-plane pods, in different directions for interrupt-driven and busy-polling UPFs, because its model apportions by CPU time. | TC-09 |
+| H4 | Kernel-level CPU settings (governor, C-state depth, UPF core count) change ΔP by an amount comparable to the difference between UPFs, with a measurable p99 latency cost. | TC-10 |
+
+### 1.6 Expected contributions
+
+1. An open method and harness (Apache-2.0) that runs one ETSI-style
+   measurement point end to end on Kubernetes and refuses to produce
+   unreproducible data.
+2. A validated dataset (CC BY 4.0) of UPF power, throughput, loss and latency
+   on server-class hardware with wattmeter ground truth.
+3. The first error analysis of Kepler per-pod attribution on a telco data
+   plane, reported as a reproducible issue to the Kepler maintainers.
+4. Findings on CPU-level mitigations with their SLA cost, reported to the UPF
+   maintainers.
+
+---
+
+## 2. Research design
+
+A **comparative, within-subject experimental study**: every UPF is measured
+on the same two nodes, with the same traffic, the same measurement chain and
+a same-day baseline, so that hardware and environment are held constant and
+only the UPF (and later the CPU configuration) varies.
+
+### 2.1 Variables
+
+| Class | Variable | Levels / definition |
+| --- | --- | --- |
+| Independent | UPF | Open5GS, eUPF, OMEC/SD-Core |
+| Independent | Load level | 0, 10, 25, 50, 100 % of the UPF's no-loss maximum (TC-07) or of the generator ceiling (TC-04), whichever is lower |
+| Independent | Packet size (inner) | 128 B, 1400 B |
+| Independent (stage 6) | CPU configuration | Governor, C-state depth, UPF core count |
+| Dependent | ΔP | P_load − P_idle on RAPL package and on external power (W) |
+| Dependent | Energy per bit | ΔP / throughput (J/Gbit) |
+| Dependent | EER | ETSI ES 203 539 weighted efficiency (bit/J) |
+| Dependent | EE_5GC | 3GPP TS 28.554 6.7.4.2 efficiency over UPF node energy (bit/J) |
+| Dependent | Throughput, loss, p50/p99 latency | From generator, sink and probe |
+| Dependent | Kepler attribution error | (P_Kepler,pod − ΔP_RAPL) / ΔP_RAPL |
+| Controlled | Governor, turbo, C-states, pinning, hostNetwork, images by digest, same-day baseline | Fixed by Ansible and Helm; recorded in the manifest |
+| Nuisance | Thermal drift, background processes, shared switch links (Grid'5000), ambient temperature | Controls in 2.2 |
+
+### 2.2 Experimental controls
+
+- Randomized run order with a recorded seed (RM-04).
+- 2 min warm-up, 5 min steady-state window, cool-down; only the steady window
+  is analysed.
+- At least 3 repetitions per point; 5 where the spread exceeds 5 %.
+- Same-day baseline before every session; on Grid'5000, inside the same OAR
+  job as the runs it serves (RM-03).
+- CPU temperature and frequency recorded at 1 Hz; ambient temperature where
+  a thermometer exists.
+- Median and range reported; a difference smaller than the repetition spread
+  is not a finding.
+- SLA check per point (TC-11); failing points are excluded from efficiency
+  and reported separately.
+
+---
+
+## 3. Platforms
+
+### 3.1 Grid'5000 — primary
+
+Grid'5000 is the French large-scale testbed for experiment-driven research
+in computer science. It is the platform for calibration and for every
+published result (ADR-11). Facts below are taken from the Grid'5000 wiki
+pages listed in section 10.
+
+| Aspect | Plan | Source |
+| --- | --- | --- |
+| Reservation | OAR jobs with `-t deploy` (required by KaVLAN and Kadeploy); short daytime jobs for development and acceptance checks; night/weekend advance reservations for the matrix, within the usage policy's daytime quota rules. `-t exotic` if the chosen cluster requires it. | Grid5000:UsagePolicy, KaVLAN |
+| Node selection | Cluster with per-node wattmeter in Kwollect; RAPL exposed; ≥ 3 Ethernet interfaces preferred, else two-interface fallback (ADR-11); both nodes on one cluster and, where possible, one switch. No cluster is fixed until verified against the Hardware page and a first short reservation. | Hardware ("Nodes with several Ethernet interfaces"), Monitoring Using Kwollect |
+| Isolation | N3 and N6 interfaces in a KaVLAN **local** VLAN; management on the site production network. KaVLAN provides L2 isolation but **no performance isolation** — inter-switch links may be shared on hierarchical sites — so loss and p99 latency are recorded at every point. | KaVLAN |
+| Power collection | `wattmetre_power_watt` (period 1000 ms, optional 20 ms on demand) as external reference; `bmc_node_power_watt` (period 5000 ms) as a cross-check only; pulled from the Kwollect API for the job window and aligned to the steady window. PDU/BMC values are documented as less reliable. | Energy consumption monitoring tutorial |
+| Reproducibility | Kadeploy3 environment pinned by name/version; OAR job ID, KaVLAN ID, node names and environment recorded in `manifest.yaml`. | Kadeploy / Getting Started |
+| Obligations | Official acknowledgement in every publication; deposit in HAL in the "GRID5000" collaboration; usage reports on request. | Grid5000:UsagePolicy |
+
+Workflow (diagram: [`figures/grid5000-workflow.mmd`](figures/grid5000-workflow.mmd)):
+reserve → deploy → attach N3/N6 to the VLAN → configure with
+`ansible/inventory/grid5000.yml` → baseline TC-01 → campaign → pull Kwollect
+series → archive run directories off-node → release.
+
+Risks: reservation contention and usage-policy limits on long weekday jobs;
+no BIOS access (turbo/C-state control only through the kernel); shared
+inter-switch links; wattmeter availability limited to specific nodes; a
+cluster may expose only two usable interfaces.
+
+### 3.2 Home bench — secondary
+
+Laptop generator plus a mini PC DUT with three Intel I226 ports and a smart
+plug (ADR-02). Its role: develop and test the harness, UPF integration and
+the calibration method between reservations; exercise BIOS-level mitigations
+that Grid'5000 does not allow; cross-check the method on consumer hardware.
+Its numbers are not published as findings.
+
+Risks: budget (200–350 €), uncalibrated meter, 2.5 GbE ceiling, thermal
+behaviour of a small enclosure.
+
+### 3.3 Comparison
+
+| Criterion | Grid'5000 | Home bench |
+| --- | --- | --- |
+| Hardware class | Server (Xeon/EPYC, 10–25 GbE) | Consumer mini PC, 2.5 GbE |
+| External power | Lab wattmeter via Kwollect, 1 s (20 ms on demand) | Smart plug, ~1 Hz, uncalibrated |
+| RAPL | Yes (verify per cluster) | Yes (verify on receipt) |
+| BIOS control | No | Yes |
+| Availability | Reservation windows, usage policy | Always |
+| N3/N6 isolation | KaVLAN, L2 only | Direct cables |
+| Reproducibility by others | High (same cluster + Kadeploy env) | Medium (same model required) |
+| Publication role | All published results | Method cross-check, development |
+
+---
+
+## 4. Measurement protocol
+
+Instrumentation chain: [`figures/measurement-chain.mmd`](figures/measurement-chain.mmd);
+details in [`architecture.md`](architecture.md), section 4.
+
+| Source | What | Rate | Notes |
+| --- | --- | --- | --- |
+| RAPL sampler (own) | Package energy counter, wrap-corrected | 1 Hz | Validated against `perf` within 1 % (RM-01); runs as root |
+| External power | Kwollect wattmeter (Grid'5000) or wall meter (home) | 1 s / ≥ 1 Hz | Covers NIC, memory, board (RM-02) |
+| Kepler | Node and pod power | Internal interval | Object of study; scrape aligned to its interval |
+| Interface counters | N3 RX, N6 TX on the DUT; sink RX | 1 Hz | Throughput and loss |
+| Latency probe | p50/p99 through the UPF | Per run | SLA input (TC-11) |
+| chrony | Clock offset between nodes | Per run | Must be < 10 ms (RM-05) |
+
+Run lifecycle (`make run-point`): apply CPU configuration and read it back →
+check chrony offset → start samplers → warm-up 2 min → steady 5 min →
+cool-down → fetch Prometheus and Kwollect series for the window → write
+`manifest.yaml`, `series.csv.gz` → append one row to `results.csv`.
+**Manifest-or-refuse:** no row is written if any manifest field is missing.
+Data artifacts and the column dictionary: [`../data/README.md`](../data/README.md).
+
+---
+
+## 5. Test campaign
+
+Full table in [`test-plan.md`](test-plan.md).
+
+| Stage | Test cases | Pass criterion (summary) | Platform |
+| --- | --- | --- | --- |
+| 2 Calibration | TC-01 idle baseline, TC-02 source coherence, TC-03 known load, TC-04 generator ceiling | < 5 % idle variation; sampler vs perf < 1 %; stable wall−RAPL offset; ceiling per packet size | Both |
+| 3 Integration | TC-05 end-to-end, TC-06 benchmark | PDU session and traffic at sink; packets sent = received | Home, then Grid'5000 |
+| 4 Max rate | TC-07 | Highest no-loss rate or generator ceiling, 60 s final trial | Grid'5000 |
+| 5 Matrix | TC-08 energy matrix, TC-11 SLA | Repetition variation < 5 %; SLA flags | Grid'5000 |
+| 6 Analysis | TC-09 Kepler attribution, TC-10 mitigations | Reported, no threshold | Grid'5000 (+ home for BIOS-level TC-10) |
+
+PFCP interoperability matrix (E3.3): Open5GS SMF × {Open5GS UPF, eUPF,
+OMEC UPF} for association, session establishment and traffic; where the SMF
+fails, pfcpsim replaces it and the UPF is tested in benchmark mode only. The
+assumption that at least two of three UPFs work with the Open5GS SMF is a
+gate-G3 condition.
+
+---
+
+## 6. Analysis plan
+
+- **ΔP** per point: median over repetitions of (steady-window mean power −
+  same-day idle baseline), on RAPL and on external power.
+- **Energy per bit:** ΔP / measured throughput (J/Gbit).
+- **EER (ETSI ES 203 539):** weighted per-level efficiency with weights
+  0.2 (10 %), 0.5 (50 %), 0.3 (100 %) from Annex A, declared as an
+  assumption; SLA-failing points excluded.
+- **EE_5GC (3GPP TS 28.554 6.7.4.2):** 8 × (N3 UL + DL octets) / UPF node
+  energy, with the caveat that node energy excludes the control plane.
+- **Energy proportionality:** P_idle / P_max and the shape of P(load).
+- **Kepler error:** (P_Kepler,pod − ΔP_RAPL) / ΔP_RAPL per point, plus Kepler
+  node total vs RAPL as a sanity check.
+- **Statistics:** median and range (min–max) over repetitions; effect sizes
+  expressed relative to repetition spread; no inferential tests beyond that
+  unless repetitions reach five per point.
+- **Notebooks:** see [`../analysis/README.md`](../analysis/README.md).
+- **Figures:** P vs load per UPF and packet size; J/Gbit vs load; EER bar
+  chart; Kepler error vs load per UPF; TC-10 ΔP vs p99 scatter.
+
+---
+
+## 7. Validity and ethics
+
+Threats and controls are tabulated in [`test-plan.md`](test-plan.md).
+Declared deviations: ETSI ambient/meter requirements, RFC 2544 frame-size
+count and software generator.
+
+- Only open-source software; all code Apache-2.0, data CC BY 4.0.
+- Grid'5000 usage policy respected (queues, quotas, frontends for light
+  tasks only, acknowledgement, HAL deposit).
+- No personal data; subscriber identities are test values.
+- The manuscript is written outside this repository until publication; if
+  the venue requires double-blind review, the public repository is not
+  linked in the submission and an anonymized archive is used instead.
+- Negative or null results (e.g. Kepler error within noise) are reported.
+
+---
+
+## 8. Work plan and milestones
+
+Effort assumption: ~6–8 h/week alongside the master's programme, plus
+Grid'5000 night/weekend reservations for unattended campaign runs.
+Diagram: [`figures/stages-and-gates.mmd`](figures/stages-and-gates.mmd).
+
+| Stage | Deliverables | Gate | Status / target |
+| --- | --- | --- | --- |
+| 0 Initiation | E0.1 charter, E0.2 CFP proposal, E0.3 lab contact | — | Done, Oct 2026 |
+| 1 Design | E1.1 requirements, E1.2 architecture, E1.3 ADRs, E1.4 test plan, E1.5 data plan | G1: no open decision changes the platform | Drafts done Oct 2026; migrated to this repo Nov 2026; G1 to be held with ADR-11 included |
+| 2 Bench as code + calibration | E1.6/E2.1 hardware acceptance (home) and Grid'5000 node acceptance (first short job: RAPL, drivers, XDP, Kwollect query); E2.2 `make bench-up` on both inventories; E2.3 calibration report (TC-01..TC-04) | G2: idle variation < 5 % on the primary platform | Nov–Dec 2026 |
+| 3 5G core + smoke | E3.1 core as code; E3.2 smoke per UPF; E3.3 PFCP matrix; E3.4 integration report | G3: two UPFs with traffic, one busy-polling and one kernel/eBPF | Dec 2026–Jan 2027 |
+| 4 Max rate | TC-07 per UPF and packet size | — | Jan 2027 |
+| 5 Energy matrix | TC-08, TC-11 full randomized matrix on Grid'5000 | — | Jan–Feb 2027 |
+| 6 Analysis + mitigations | TC-09, TC-10; notebooks; figures | — | Feb 2027 |
+| Dissemination | Tagged release + Zenodo DOI; KubeCon EU 2027 talk (16–18 March, CFP notification 7 Dec 2026) | — | Mar 2027 |
+| Paper track | Outline after G3; draft after stage 5; submission to a workshop/conference after stage 6; master's report in parallel | — | Outline Jan 2027; draft Mar 2027; submission per venue deadline |
+
+Gate rules: a gate that fails cuts scope rather than slips indefinitely — G3
+minimum is two UPFs; the third UPF, the third packet size and the Multus
+variant are the first items dropped.
+
+---
+
+## 9. Dissemination and reproducibility
+
+- Tagged release of repository and dataset before the talk, archived on
+  Zenodo for a citable DOI (`CITATION.cff` updated with the DOI).
+- Dataset under CC BY 4.0 with the data dictionary in `data/README.md`.
+- Paper deposited in HAL in the GRID5000 collaboration with the official
+  acknowledgement.
+- Reproducible issue with data to the Kepler maintainers (TC-09).
+- Results and exact configuration to the eUPF, OMEC/SD-Core and Open5GS
+  maintainers.
+- Logbook (`docs/logbook/`) as the audit trail of what was done, what failed
+  and what was decided.
+
+---
+
+## 10. References
+
+Standards and methods
+
+- ETSI ES 203 539 V1.1.1 (2019), *Environmental Engineering (EE); Measurement
+  method for energy efficiency of Network Functions Virtualisation (NFV) in
+  laboratory environment*.
+- 3GPP TS 28.554, *Management and orchestration; 5G end to end Key
+  Performance Indicators (KPI)*, clauses 6.7.4.2 and 6.7.3.1.4.
+- IETF RFC 8172 (2017), *Considerations for Benchmarking Virtual Network
+  Functions and Their Infrastructure*.
+- IETF RFC 2544 (1999), *Benchmarking Methodology for Network Interconnect
+  Devices*.
+- M. Nygard, *Documenting Architecture Decisions*, 2011.
+
+Grid'5000 wiki (accessed 2026-11-14)
+
+- Grid5000:UsagePolicy — <https://www.grid5000.fr/w/Grid5000:UsagePolicy>
+- Energy consumption monitoring tutorial —
+  <https://www.grid5000.fr/w/Energy_consumption_monitoring_tutorial>
+- Monitoring Using Kwollect — <https://www.grid5000.fr/w/Monitoring_Using_Kwollect>
+- KaVLAN — <https://www.grid5000.fr/w/KaVLAN>
+- Hardware — <https://www.grid5000.fr/w/Hardware>
+- Getting Started / Kadeploy — <https://www.grid5000.fr/w/Getting_Started>
+
+Software
+
+- Kepler — <https://github.com/sustainable-computing-io/kepler>
+- Open5GS — <https://open5gs.org/>
+- eUPF — <https://github.com/edgecomllc/eupf>
+- OMEC / SD-Core UPF — <https://github.com/omec-project/upf>
+- pfcpsim — <https://github.com/omec-project/pfcpsim>
+- UERANSIM — <https://github.com/aligungr/UERANSIM>
+- DPDK igc driver guide — <https://doc.dpdk.org/guides/nics/igc.html>
+- k3s — <https://k3s.io/>

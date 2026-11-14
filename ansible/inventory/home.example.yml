@@ -1,0 +1,32 @@
+# Example inventory: secondary home bench (laptop generator + mini PC DUT).
+# Copy to home.yml and edit; home.yml is git-ignored. Addresses follow the
+# proposal in docs/architecture.md and are fixed here, not in roles.
+all:
+  vars:
+    bench_profile: home
+    mgmt_cidr: 192.168.50.0/24
+    n3_cidr: 10.3.0.0/24
+    n6_cidr: 10.6.0.0/24
+    ue_pool_e2e: 10.45.0.0/16
+    ue_pool_bench: 17.0.0.0/24
+    wall_meter_url: http://192.168.50.30   # HTTP-readable smart plug
+  children:
+    generator:
+      hosts:
+        gen:
+          ansible_host: 192.168.50.10
+          n3_iface: enx0  # USB 2.5GbE adapter, N3 side (gNB / tcpreplay)
+          n3_ip: 10.3.0.1
+          n6_iface: enx1  # USB 2.5GbE adapter, moved into netns dn
+          n6_ip: 10.6.0.1
+    dut:
+      hosts:
+        dut:
+          ansible_host: 192.168.50.20
+          mgmt_iface: enp1s0
+          n3_iface: enp2s0
+          n3_ip: 10.3.0.2
+          n6_iface: enp3s0
+          n6_ip: 10.6.0.2
+          upf_cpus: "2-3"
+          reserved_cpus: "0-1"

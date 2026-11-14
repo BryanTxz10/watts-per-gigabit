@@ -9,7 +9,7 @@ flowchart TB
     PKG --> S
     PKG --> K
   end
-  EXT["External power<br/>Kwollect wattmetre_power_watt (1 s)<br/>or wall meter (≥1 Hz)"]
+  EXT["External power<br/>Kwollect bmc_node_power_watt (5 s)<br/>or wall meter (≥1 Hz)"]
   subgraph GENN["Generator node"]
     P["Prometheus"]
     G["Generator + sink counters"]

@@ -18,7 +18,7 @@ and amends ADR-02 and ADR-04.
 | [0008](0008-two-traffic-modes.md) | Two traffic modes: end-to-end (UERANSIM, iperf3) and benchmark (pfcpsim, Scapy, tcpreplay) | Proposed |
 | [0009](0009-fixed-cpu-configuration-in-baseline.md) | Fixed CPU configuration in the baseline, varied only in the mitigation stage | Proposed |
 | [0010](0010-infrastructure-as-code.md) | Infrastructure as code: Ansible, Helm values, Makefile entry point | Proposed |
-| [0011](0011-grid5000-as-primary-measurement-platform.md) | Grid'5000 as primary measurement platform, home bench as secondary | Proposed |
+| [0011](0011-grid5000-as-primary-measurement-platform.md) | Grid'5000 as primary measurement platform, home bench as secondary; node selection restricted to three-interface clusters | Proposed — accepted after the E1.7 acceptance reservation |
 
 Status vocabulary: *Proposed* (awaiting G1), *Accepted*, *Amended by ADR-NN*,
 *Superseded by ADR-NN*, *Rejected*.

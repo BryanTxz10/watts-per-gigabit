@@ -48,7 +48,7 @@ Inferred from the design document; refined after integration.
 
 | Platform | Role | External power |
 | --- | --- | --- |
-| [Grid'5000](https://www.grid5000.fr/) | **Primary** — calibration and every published measurement ([ADR-11](docs/adr/0011-grid5000-as-primary-measurement-platform.md)) | Per-node wattmeter via Kwollect (`wattmetre_power_watt`, 1 s) |
+| [Grid'5000](https://www.grid5000.fr/) | **Primary** — calibration and every published measurement ([ADR-11](docs/adr/0011-grid5000-as-primary-measurement-platform.md)); nodes with three dedicated NICs | Node power from the BMC via Kwollect (`bmc_node_power_watt`, 5 s) |
 | Home bench (laptop + mini PC with 3 × Intel I226) | **Secondary** — development, calibration between reservations, consumer-hardware cross-check ([ADR-02](docs/adr/0002-dedicated-mini-pc-as-dut.md)) | Smart plug, ≥ 1 Hz |
 
 ```mermaid
@@ -67,7 +67,7 @@ flowchart LR
     RAPL["RAPL sampler · node-exporter"]
   end
 
-  PWR["External power<br/>Kwollect wattmeter / wall meter"]
+  PWR["External power<br/>Kwollect BMC / wall meter"]
 
   CP -- "N4 PFCP (mgmt)" --> UPF
   TG -- "N3 GTP-U" --> UPF
@@ -85,9 +85,9 @@ Full description: [`docs/architecture.md`](docs/architecture.md).
 
 - **Reference:** RAPL package energy, read by the project's own 1 Hz sampler
   with counter-wrap handling, validated against `perf` within 1 %.
-- **Validation:** external node power (Grid'5000 wattmeter through Kwollect,
-  or a wall meter at home) covering NIC, memory and board that RAPL does not
-  see.
+- **Validation:** external node power (Grid'5000 BMC through Kwollect, or
+  a wall meter at home) covering NIC, memory and board that RAPL does not
+  see. Neither meter is laboratory-grade; this is declared as a deviation.
 - **Object of study:** Kepler. Its node total must match RAPL; its per-pod
   apportionment is compared with RAPL ΔP.
 - **Method:** ETSI ES 203 539 laboratory method — power under load minus
@@ -162,12 +162,14 @@ Today every target prints `not implemented yet` and exits non-zero.
 
 | Gate | Meaning | Status |
 | --- | --- | --- |
-| G1 | Design review: no open decision changes the platform | Pending (includes ADR-11) |
+| G1 | Design review: no open decision changes the platform; Grid'5000 acceptance reservation passed | Pending (Nov 2026) |
 | G2 | Stable idle baseline (< 5 % variation) on the primary platform | Pending |
 | G3 | Two UPFs carrying traffic, one busy-polling and one kernel/eBPF | Pending |
 
-Stages 0–1 (initiation, design) are complete; stage 2 (bench as code,
-calibration) starts now. Full plan: [`docs/methodology.md`](docs/methodology.md).
+Stages 0–1 (initiation, design) are documented; the next step is a short
+Grid'5000 acceptance reservation that validates the design before G1, then
+stage 2 (bench as code, calibration). Full plan:
+[`docs/methodology.md`](docs/methodology.md).
 
 ## Reproducibility and data policy
 

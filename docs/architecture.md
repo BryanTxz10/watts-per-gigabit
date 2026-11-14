@@ -17,9 +17,9 @@ measure it. That is the generator/DUT separation RFC 8172 asks for.
 | Role | Grid'5000 (primary) | Home bench (secondary) |
 | --- | --- | --- |
 | Generator | One node of the reserved pair, Kadeploy-provisioned | Laptop, mains-powered, suspend disabled |
-| DUT | Second node of the pair, on a cluster with a wattmeter | x86 mini PC, ≥ 4 cores, 3 × Intel I225/I226 NICs (`igc`) |
-| External power | Wattmeter via Kwollect (`wattmetre_power_watt`, 1 s; 20 ms on demand) | Smart plug with local HTTP API, ≥ 1 Hz |
-| Cross-check power | `bmc_node_power_watt` (5 s, less precise) | None |
+| DUT | Second node of the pair, on a cluster with three usable Ethernet interfaces (working candidate: `servan`, Grenoble) | x86 mini PC, ≥ 4 cores, 3 × Intel I225/I226 NICs (`igc`) |
+| External power | BMC node power via Kwollect (`bmc_node_power_watt`, 5 s; less precise, excludes PSU losses). No three-interface cluster has a dedicated wattmeter (ADR-11) | Smart plug with local HTTP API, ≥ 1 Hz |
+| Cross-check power | `pdu_outlet_power_watt` where the cluster exposes it (`kinovis`); none on `servan` | None |
 | Management network | Grid'5000 site production network | Travel router, 192.168.50.0/24 |
 | N3 / N6 | KaVLAN (local VLAN) on dedicated interfaces | Direct Cat 6 cables |
 
@@ -54,9 +54,10 @@ Rules:
   port 8805, for both the SMF and pfcpsim.
 - **Grid'5000 specifics (ADR-11).** N3 and N6 are placed in a KaVLAN local
   VLAN with OAR deploy jobs. KaVLAN provides L2 isolation but no performance
-  isolation, so loss and latency are recorded at every point. Nodes with
-  three Ethernet interfaces keep one NIC per network; on two-interface nodes
-  the fallback is documented in ADR-11 and declared in the report.
+  isolation, so loss and latency are recorded at every point. Node selection
+  is restricted to clusters with three usable Ethernet interfaces, so one
+  NIC per network holds on both platforms; sharing a NIC between N3 and N6
+  was considered and rejected (ADR-11).
 
 ## 3. Kubernetes deployment view
 
@@ -105,8 +106,8 @@ because on recent kernels `energy_uj` is readable only by root.
 | Signal | Source | Rate | Consumer |
 | --- | --- | --- | --- |
 | RAPL package energy | Own sampler on the DUT | 1 Hz | Prometheus → harness |
-| External node power | Kwollect API (Grid'5000) or smart plug (home) | 1 s / ≥ 1 Hz | Harness |
-| BMC node power (cross-check) | Kwollect `bmc_node_power_watt` | 5 s | Harness |
+| External node power | Kwollect `bmc_node_power_watt` (Grid'5000) or smart plug (home) | 5 s / ≥ 1 Hz | Harness |
+| PDU outlet power (cross-check, where available) | Kwollect `pdu_outlet_power_watt` | Per device | Harness |
 | Pod and node power | Kepler | Internal interval | Prometheus → harness |
 | CPU temperature, frequency | node-exporter / hwmon | Scrape interval | Prometheus → harness |
 | N3/N6 counters | DUT interfaces or UPF | 1 Hz | Harness |

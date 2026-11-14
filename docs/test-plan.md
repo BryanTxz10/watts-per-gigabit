@@ -59,7 +59,8 @@ attribution error $\varepsilon_K = (P_{\mathrm{Kepler,pod}} - \Delta P_{\mathrm{
 | TC-11 | SLA per level | Loss and p99 latency at each TC-08 point | A point failing the SLA is flagged and excluded from efficiency | 5 |
 
 Platform note (ADR-11): TC-01..TC-04 are executed on both platforms; TC-03
-uses the Kwollect wattmeter series on Grid'5000 and the wall meter at home.
+uses the Kwollect `bmc_node_power_watt` series on Grid'5000 (5 s period, so
+the comparison is between 5 min means) and the wall meter at home.
 TC-07..TC-11 are executed on Grid'5000; the home bench repeats a subset for
 cross-platform sanity, not for publication.
 
@@ -78,8 +79,10 @@ cross-platform sanity, not for publication.
 - ETSI ES 203 539 requires 25 ± 2 °C ambient and a calibrated meter with ±1 %
   accuracy. Neither platform is controlled to that level: ambient temperature
   is recorded at home where available and is unknown in Grid'5000 machine
-  rooms; wattmeter and wall-meter readings are used for comparison, not as
-  absolute values.
+  rooms; the external meter is the node BMC on Grid'5000 (5 s, documented as
+  less precise than a wattmeter, excluding PSU losses) and an uncalibrated
+  smart plug at home. External readings are used for comparison and
+  plausibility, not as absolute values.
 - RFC 2544 recommends at least five frame sizes. The plan uses two for time
   reasons; a third enters the full scope if time allows.
 - RFC 2544 assumes dedicated test equipment; here the generator is a

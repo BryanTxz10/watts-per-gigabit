@@ -5,6 +5,6 @@ flowchart LR
   V --> C["Configure<br/>ansible -i grid5000.yml"]
   C --> B["Baseline TC-01<br/>same job"]
   B --> M["Campaign<br/>make campaign"]
-  M --> K["Collect Kwollect<br/>wattmetre_power_watt"]
+  M --> K["Collect Kwollect<br/>bmc_node_power_watt"]
   K --> X["Archive run dirs<br/>off-node"]
   X --> E["Release job<br/>oardel"]

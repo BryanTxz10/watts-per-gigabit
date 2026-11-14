@@ -4,10 +4,12 @@
 Kubernetes.
 **Author:** Bryan Cucho. **Version:** 0.1, 2026-11-14 (supersedes the
 planning sections of the October 2026 design document).
-**End goal:** a master's research paper (workshop or conference format) and
-the accompanying master's report, backed by an open method, tool and
-dataset; a KubeCon EU 2027 talk is the dissemination vehicle for the
-practitioner audience.
+**End goal:** a master's research paper (workshop or conference format,
+venue to be chosen) and the accompanying master's report, backed by an open
+method, tool and dataset. There is no external submission deadline; the
+paper track runs over five to seven months from November 2026 (section 8).
+A KubeCon EU 2027 talk is the dissemination vehicle for the practitioner
+audience, not the paper deadline.
 
 This document is the research plan. Requirements, architecture, test plan,
 ADRs and the data dictionary are separate documents under `docs/` and
@@ -73,7 +75,8 @@ report (E3.4) and before the measurement campaign.
    measurement point end to end on Kubernetes and refuses to produce
    unreproducible data.
 2. A validated dataset (CC BY 4.0) of UPF power, throughput, loss and latency
-   on server-class hardware with wattmeter ground truth.
+   on server-class hardware, with RAPL package energy cross-checked against
+   node power from the platform's BMC.
 3. The first error analysis of Kepler per-pod attribution on a telco data
    plane, reported as a reproducible issue to the Kepler maintainers.
 4. Findings on CPU-level mitigations with their SLA cost, reported to the UPF
@@ -133,10 +136,10 @@ pages listed in section 10.
 
 | Aspect | Plan | Source |
 | --- | --- | --- |
-| Reservation | OAR jobs with `-t deploy` (required by KaVLAN and Kadeploy); short daytime jobs for development and acceptance checks; night/weekend advance reservations for the matrix, within the usage policy's daytime quota rules. `-t exotic` if the chosen cluster requires it. | Grid5000:UsagePolicy, KaVLAN |
-| Node selection | Cluster with per-node wattmeter in Kwollect; RAPL exposed; ≥ 3 Ethernet interfaces preferred, else two-interface fallback (ADR-11); both nodes on one cluster and, where possible, one switch. No cluster is fixed until verified against the Hardware page and a first short reservation. | Hardware ("Nodes with several Ethernet interfaces"), Monitoring Using Kwollect |
+| Reservation | OAR jobs with `-t deploy` (required by KaVLAN and Kadeploy) and `-t exotic` (required by `servan`); short daytime jobs for development and the acceptance check; night/weekend advance reservations (`oarsub -r`) for the matrix, within the usage policy's daytime quota rules. | Grid5000:UsagePolicy, KaVLAN, Grenoble:Hardware |
+| Node selection | Restricted to clusters with **three usable Ethernet interfaces**, so management, N3 and N6 each keep a dedicated NIC (ADR-04). Only `servan` (Grenoble, 2 nodes), `kinovis` (Grenoble, `abaca` production queue) and `vianden` (Luxembourg, 1 node) qualify. `servan` is the working candidate; `kinovis` is the fallback if production-queue access is granted; `vianden` is excluded (single node). **None of the three has a dedicated wattmeter**; all expose `bmc_node_power_watt`. Confirmed by the acceptance reservation before G1. | Hardware ("Nodes with several Ethernet interfaces"), Grenoble:Hardware, Luxembourg:Hardware, Monitoring Using Kwollect |
 | Isolation | N3 and N6 interfaces in a KaVLAN **local** VLAN; management on the site production network. KaVLAN provides L2 isolation but **no performance isolation** — inter-switch links may be shared on hierarchical sites — so loss and p99 latency are recorded at every point. | KaVLAN |
-| Power collection | `wattmetre_power_watt` (period 1000 ms, optional 20 ms on demand) as external reference; `bmc_node_power_watt` (period 5000 ms) as a cross-check only; pulled from the Kwollect API for the job window and aligned to the steady window. PDU/BMC values are documented as less reliable. | Energy consumption monitoring tutorial |
+| Power collection | `bmc_node_power_watt` (period 5000 ms) as the external reference on the selected clusters, pulled from the Kwollect API for the job window and aligned to the 5 min steady window (≥ 60 samples per point). The tutorial documents BMC readings as less precise than wattmeters and PDUs and as excluding PSU losses; this is a declared limitation (section 7). `wattmetre_power_watt` (1000 ms, 20 ms on demand) exists only on one- and two-interface clusters and is not used. | Energy consumption monitoring tutorial, Monitoring Using Kwollect |
 | Reproducibility | Kadeploy3 environment pinned by name/version; OAR job ID, KaVLAN ID, node names and environment recorded in `manifest.yaml`. | Kadeploy / Getting Started |
 | Obligations | Official acknowledgement in every publication; deposit in HAL in the "GRID5000" collaboration; usage reports on request. | Grid5000:UsagePolicy |
 
@@ -145,10 +148,13 @@ reserve → deploy → attach N3/N6 to the VLAN → configure with
 `ansible/inventory/grid5000.yml` → baseline TC-01 → campaign → pull Kwollect
 series → archive run directories off-node → release.
 
-Risks: reservation contention and usage-policy limits on long weekday jobs;
-no BIOS access (turbo/C-state control only through the kernel); shared
-inter-switch links; wattmeter availability limited to specific nodes; a
-cluster may expose only two usable interfaces.
+Risks: `servan` has only two nodes and requires `-t exotic`, so a single
+other user blocks the pair; usage-policy limits on long weekday jobs; no
+BIOS access (turbo/C-state control only through the kernel); shared
+inter-switch links; BMC power at 5 s is a coarse external reference; AMD
+RAPL and Kepler's support for it must be confirmed in the acceptance job.
+Mitigations: advance reservations, per-UPF jobs that fit one night,
+manifest-based resume, `kinovis` as fallback.
 
 ### 3.2 Home bench — secondary
 
@@ -165,9 +171,10 @@ behaviour of a small enclosure.
 
 | Criterion | Grid'5000 | Home bench |
 | --- | --- | --- |
-| Hardware class | Server (Xeon/EPYC, 10–25 GbE) | Consumer mini PC, 2.5 GbE |
-| External power | Lab wattmeter via Kwollect, 1 s (20 ms on demand) | Smart plug, ~1 Hz, uncalibrated |
-| RAPL | Yes (verify per cluster) | Yes (verify on receipt) |
+| Hardware class | Server (`servan`: 2 × AMD EPYC 7352, 25/10 GbE Intel E810) | Consumer mini PC, 2.5 GbE |
+| External power | BMC node power via Kwollect, 5 s, less precise, excludes PSU losses | Smart plug, ~1 Hz, uncalibrated |
+| RAPL | Expected (AMD Zen 2); confirmed in acceptance job | Yes (verify on receipt) |
+| Networks | Three dedicated NICs (management, N3, N6) | Three dedicated NICs |
 | BIOS control | No | Yes |
 | Availability | Reservation windows, usage policy | Always |
 | N3/N6 isolation | KaVLAN, L2 only | Direct cables |
@@ -184,7 +191,7 @@ details in [`architecture.md`](architecture.md), section 4.
 | Source | What | Rate | Notes |
 | --- | --- | --- | --- |
 | RAPL sampler (own) | Package energy counter, wrap-corrected | 1 Hz | Validated against `perf` within 1 % (RM-01); runs as root |
-| External power | Kwollect wattmeter (Grid'5000) or wall meter (home) | 1 s / ≥ 1 Hz | Covers NIC, memory, board (RM-02) |
+| External power | Kwollect `bmc_node_power_watt` (Grid'5000) or wall meter (home) | 5 s / ≥ 1 Hz | Covers NIC, memory, board (RM-02); BMC excludes PSU losses |
 | Kepler | Node and pod power | Internal interval | Object of study; scrape aligned to its interval |
 | Interface counters | N3 RX, N6 TX on the DUT; sink RX | 1 Hz | Throughput and loss |
 | Latency probe | p50/p99 through the UPF | Per run | SLA input (TC-11) |
@@ -244,8 +251,10 @@ gate-G3 condition.
 ## 7. Validity and ethics
 
 Threats and controls are tabulated in [`test-plan.md`](test-plan.md).
-Declared deviations: ETSI ambient/meter requirements, RFC 2544 frame-size
-count and software generator.
+Declared deviations: ETSI ambient and meter requirements (on Grid'5000 the
+external meter is the node BMC at 5 s, less precise than a wattmeter and
+excluding PSU losses; at home an uncalibrated smart plug), RFC 2544
+frame-size count and software generator.
 
 - Only open-source software; all code Apache-2.0, data CC BY 4.0.
 - Grid'5000 usage policy respected (queues, quotas, frontends for light
@@ -267,14 +276,38 @@ Diagram: [`figures/stages-and-gates.mmd`](figures/stages-and-gates.mmd).
 | Stage | Deliverables | Gate | Status / target |
 | --- | --- | --- | --- |
 | 0 Initiation | E0.1 charter, E0.2 CFP proposal, E0.3 lab contact | — | Done, Oct 2026 |
-| 1 Design | E1.1 requirements, E1.2 architecture, E1.3 ADRs, E1.4 test plan, E1.5 data plan | G1: no open decision changes the platform | Drafts done Oct 2026; migrated to this repo Nov 2026; G1 to be held with ADR-11 included |
-| 2 Bench as code + calibration | E1.6/E2.1 hardware acceptance (home) and Grid'5000 node acceptance (first short job: RAPL, drivers, XDP, Kwollect query); E2.2 `make bench-up` on both inventories; E2.3 calibration report (TC-01..TC-04) | G2: idle variation < 5 % on the primary platform | Nov–Dec 2026 |
+| 1 Design | E1.1 requirements, E1.2 architecture, E1.3 ADRs (incl. ADR-11), E1.4 test plan, E1.5 data plan; **E1.7 Grid'5000 acceptance reservation** (design validation, see below) | G1: no open decision changes the platform; E1.7 passed | Drafts done Oct 2026; migrated to this repo Nov 2026; E1.7 and G1 in Nov 2026 |
+| 2 Bench as code + calibration | E1.6/E2.1 home hardware acceptance; E2.2 `make bench-up` on both inventories; E2.3 calibration report (TC-01..TC-04) | G2: idle variation < 5 % on the primary platform | Dec 2026 |
 | 3 5G core + smoke | E3.1 core as code; E3.2 smoke per UPF; E3.3 PFCP matrix; E3.4 integration report | G3: two UPFs with traffic, one busy-polling and one kernel/eBPF | Dec 2026–Jan 2027 |
 | 4 Max rate | TC-07 per UPF and packet size | — | Jan 2027 |
-| 5 Energy matrix | TC-08, TC-11 full randomized matrix on Grid'5000 | — | Jan–Feb 2027 |
-| 6 Analysis + mitigations | TC-09, TC-10; notebooks; figures | — | Feb 2027 |
-| Dissemination | Tagged release + Zenodo DOI; KubeCon EU 2027 talk (16–18 March, CFP notification 7 Dec 2026) | — | Mar 2027 |
-| Paper track | Outline after G3; draft after stage 5; submission to a workshop/conference after stage 6; master's report in parallel | — | Outline Jan 2027; draft Mar 2027; submission per venue deadline |
+| 5 Energy matrix | TC-08, TC-11 full randomized matrix on Grid'5000 | — | Feb 2027 |
+| 6 Analysis + mitigations | TC-09, TC-10; notebooks; figures | — | Feb–Mar 2027 |
+| Dissemination | Tagged release + Zenodo DOI; KubeCon EU 2027 talk (16–18 March) if the proposal is accepted — a dissemination milestone, not a deadline for the paper | — | Mar 2027 |
+| Paper track | See below | — | Nov 2026–Apr/Jun 2027 |
+
+**E1.7 — Grid'5000 acceptance reservation (before G1).** One short daytime
+job on the working candidate (`servan`, `-t deploy -t exotic`) with a
+minimal Kadeploy environment, to validate the design assumptions that no
+wiki page can confirm: RAPL package energy readable on both sockets
+(`/sys/class/powercap`), `ethtool -i` and link state on the three
+interfaces, a native XDP program loaded on the N3 NIC, the KaVLAN attach
+procedure, and `bmc_node_power_watt` retrieved from Kwollect for the job
+window. Pass: all five checks succeed. Fail: switch to `kinovis` (if
+`abaca` access is available) or reopen ADR-11. The result is recorded in
+the logbook and G1 is held only after it.
+
+**Paper track (no external deadline; venue to be chosen).** Month-level
+targets over five to seven months:
+
+| Month | Paper-track milestone |
+| --- | --- |
+| Nov 2026 | Related-work reading list and bibliography started; research questions frozen with G1 |
+| Dec 2026 | Method section drafted from `docs/methodology.md` and `docs/test-plan.md` after G2 |
+| Jan 2027 | Full outline; candidate venues (workshop vs. conference) shortlisted with their next deadlines |
+| Feb 2027 | Results section drafted as the matrix completes; figures from the notebooks |
+| Mar 2027 | Complete first draft; internal review (advisor, lab); KubeCon talk as a dress rehearsal of the narrative |
+| Apr 2027 | Revised draft; venue chosen; dataset and code frozen for a tagged release |
+| May–Jun 2027 | Submission to the chosen venue; master's report finalized in parallel |
 
 Gate rules: a gate that fails cuts scope rather than slips indefinitely — G3
 minimum is two UPFs; the third UPF, the third packet size and the Multus
@@ -284,8 +317,9 @@ variant are the first items dropped.
 
 ## 9. Dissemination and reproducibility
 
-- Tagged release of repository and dataset before the talk, archived on
-  Zenodo for a citable DOI (`CITATION.cff` updated with the DOI).
+- Tagged release of repository and dataset once the analysis is frozen,
+  archived on Zenodo for a citable DOI (`CITATION.cff` updated with the
+  DOI).
 - Dataset under CC BY 4.0 with the data dictionary in `data/README.md`.
 - Paper deposited in HAL in the GRID5000 collaboration with the official
   acknowledgement.
@@ -320,6 +354,8 @@ Grid'5000 wiki (accessed 2026-11-14)
 - Monitoring Using Kwollect — <https://www.grid5000.fr/w/Monitoring_Using_Kwollect>
 - KaVLAN — <https://www.grid5000.fr/w/KaVLAN>
 - Hardware — <https://www.grid5000.fr/w/Hardware>
+- Grenoble:Hardware — <https://www.grid5000.fr/w/Grenoble:Hardware>
+- Luxembourg:Hardware — <https://www.grid5000.fr/w/Luxembourg:Hardware>
 - Getting Started / Kadeploy — <https://www.grid5000.fr/w/Getting_Started>
 
 Software

@@ -1,0 +1,51 @@
+# Example inventory: primary platform, Grid'5000 (ADR-11).
+# Copy to grid5000.yml after the OAR reservation and Kadeploy deployment,
+# fill in the real node names, and never commit it (git-ignored).
+#
+# Expected workflow (docs/methodology.md, section 3):
+#   oarsub -t deploy -p "host in ('gros-41.nancy.grid5000.fr','gros-42.nancy.grid5000.fr')" \
+#     -l {"type='kavlan-local'"}/vlan=2+/nodes=2,walltime=... -I
+#   (or -p chirop in Lille; on gros only nodes 41-76 have a wattmeter)
+#   kadeploy3 -e <environment> -f $OAR_NODE_FILE -k
+#   kavlan -s -i <VLAN_ID> ...   # put the second NIC (N3/N6 sub-interfaces) in the VLAN(s)
+#   ansible-playbook -i ansible/inventory/grid5000.yml site.yml
+all:
+  vars:
+    bench_profile: grid5000
+    g5k_site: nancy           # candidate per ADR-11 (alternative: lille / chirop)
+    g5k_cluster: gros         # nodes 41-76 only: dedicated wattmeter, 2 x 25 G
+    g5k_job_id: 0
+    kavlan_id_n3: 0
+    kavlan_id_n6: 0           # same as kavlan_id_n3 if only one VLAN is granted
+    mgmt_cidr: 172.16.0.0/16  # Grid'5000 site production network; informational
+    n3_cidr: 10.3.0.0/24
+    n6_cidr: 10.6.0.0/24
+    ue_pool_e2e: 10.45.0.0/16
+    ue_pool_bench: 17.0.0.0/24
+    # Power source: Kwollect node metrics, not a smart plug (ADR-11).
+    power_source: kwollect
+    kwollect_metrics:
+      - wattmetre_power_watt   # period 1000 ms (20 ms on demand), external reference
+      - bmc_node_power_watt    # period 5000 ms, secondary cross-check
+  children:
+    generator:
+      hosts:
+        gen:
+          ansible_host: gros-41.nancy.grid5000.fr
+          data_iface: eth1     # second NIC, shared by N3 and N6 (ADR-11)
+          n3_iface: eth1.N3    # 802.1Q sub-interface; VLAN id from kavlan_id_n3
+          n3_ip: 10.3.0.1
+          n6_iface: eth1.N6    # moved into netns dn (ADR-05)
+          n6_ip: 10.6.0.1
+    dut:
+      hosts:
+        dut:
+          ansible_host: gros-42.nancy.grid5000.fr
+          mgmt_iface: eth0
+          data_iface: eth1
+          n3_iface: eth1.N3
+          n3_ip: 10.3.0.2
+          n6_iface: eth1.N6
+          n6_ip: 10.6.0.2
+          upf_cpus: "2-3"
+          reserved_cpus: "0-1"

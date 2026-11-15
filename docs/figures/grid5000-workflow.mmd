@@ -1,0 +1,10 @@
+%% Grid'5000 campaign workflow (docs/methodology.md, section 3).
+flowchart LR
+  R["Reserve<br/>oarsub -t deploy<br/>+ kavlan"] --> D["Deploy<br/>kadeploy3 env"]
+  D --> V["Attach N3/N6 NICs<br/>to KaVLAN"]
+  V --> C["Configure<br/>ansible -i grid5000.yml"]
+  C --> B["Baseline TC-01<br/>same job"]
+  B --> M["Campaign<br/>make campaign"]
+  M --> K["Collect Kwollect<br/>wattmetre_power_watt"]
+  K --> X["Archive run dirs<br/>off-node"]
+  X --> E["Release job<br/>oardel"]

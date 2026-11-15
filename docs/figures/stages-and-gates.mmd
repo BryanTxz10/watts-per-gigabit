@@ -1,0 +1,13 @@
+%% Stages and gates (docs/methodology.md, section 8).
+flowchart LR
+  S0["Stage 0<br/>Initiation"] --> S1["Stage 1<br/>Design"]
+  S1 --> A["E1.7<br/>Grid'5000 acceptance<br/>reservation"]
+  A --> G1{"G1<br/>design review"}
+  G1 --> S2["Stage 2<br/>Bench as code<br/>+ calibration"]
+  S2 --> G2{"G2<br/>stable baseline<br/>< 5 %"}
+  G2 --> S3["Stage 3<br/>5G core + smoke"]
+  S3 --> G3{"G3<br/>2 UPFs with traffic"}
+  G3 --> S4["Stage 4<br/>Max rate TC-07"]
+  S4 --> S5["Stage 5<br/>Energy matrix<br/>TC-08 · TC-11"]
+  S5 --> S6["Stage 6<br/>Kepler + mitigations<br/>TC-09 · TC-10"]
+  S6 --> P["Paper (venue TBD)<br/>dataset · talk"]

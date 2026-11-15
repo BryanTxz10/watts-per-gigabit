@@ -1,0 +1,83 @@
+# --- Secrets and testbed access (this repository is public) ---------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+id_rsa*
+id_ed25519*
+*.kube/
+kubeconfig*
+!kubeconfig.example*
+.vault_pass*
+vault.yml
+*vault*.yml
+*.vault
+.g5k/
+.python-grid5000.yaml
+*.oar
+OAR.*.stdout
+OAR.*.stderr
+
+# Real Ansible inventories are never committed; commit *.example.yml instead
+ansible/inventory/*.yml
+ansible/inventory/*.yaml
+!ansible/inventory/*.example.yml
+!ansible/inventory/*.example.yaml
+ansible/inventory/host_vars/
+ansible/inventory/group_vars/
+!ansible/inventory/group_vars/*.example.yml
+*.retry
+
+# --- Raw run artifacts (released as a tagged dataset, not tracked here) ---
+data/runs/*
+!data/runs/.gitkeep
+!data/runs/README.md
+data/results.csv
+
+# --- Python -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Jupyter ----------------------------------------------------------------
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+
+# --- Helm / Kubernetes ------------------------------------------------------
+k8s/**/charts/
+k8s/**/Chart.lock
+k8s/**/*.tgz
+*-secret.yaml
+*-secrets.yaml
+!*-secret.example.yaml
+
+# --- Editors and OS -------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# --- Local scratch ----------------------------------------------------------
+tmp/
+scratch/
+*.pcap
+*.pcapng
+!harness/fixtures/*.pcap

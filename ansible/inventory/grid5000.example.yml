@@ -1,0 +1,47 @@
+# Example inventory: primary platform, Grid'5000 (ADR-11).
+# Copy to grid5000.yml after the OAR reservation and Kadeploy deployment,
+# fill in the real node names, and never commit it (git-ignored).
+#
+# Expected workflow (docs/methodology.md, section 3):
+#   oarsub -t deploy -t exotic -p servan -l {"type='kavlan-local'"}/vlan=1+/nodes=2,walltime=... -I
+#   kadeploy3 -e <environment> -f $OAR_NODE_FILE -k
+#   kavlan -s -i <VLAN_ID> ...   # put the N3/N6 interfaces in the VLAN
+#   ansible-playbook -i ansible/inventory/grid5000.yml site.yml
+all:
+  vars:
+    bench_profile: grid5000
+    g5k_site: grenoble        # working candidate per ADR-11
+    g5k_cluster: servan       # three usable Ethernet interfaces; requires -t exotic
+    g5k_job_id: 0
+    kavlan_id: 0
+    mgmt_cidr: 172.16.0.0/16  # Grid'5000 site production network; informational
+    n3_cidr: 10.3.0.0/24
+    n6_cidr: 10.6.0.0/24
+    ue_pool_e2e: 10.45.0.0/16
+    ue_pool_bench: 17.0.0.0/24
+    # Power source: Kwollect node metrics, not a smart plug. Three-interface
+    # clusters have no dedicated wattmeter (ADR-11); BMC power is the reference.
+    power_source: kwollect
+    kwollect_metrics:
+      - bmc_node_power_watt    # period 5000 ms, external reference
+      # - pdu_outlet_power_watt  # cross-check where the cluster exposes it (kinovis)
+  children:
+    generator:
+      hosts:
+        gen:
+          ansible_host: servan-1.grenoble.grid5000.fr
+          n3_iface: eno2
+          n3_ip: 10.3.0.1
+          n6_iface: eno3       # 3-NIC nodes; see 2-NIC fallback in ADR-11
+          n6_ip: 10.6.0.1
+    dut:
+      hosts:
+        dut:
+          ansible_host: servan-2.grenoble.grid5000.fr
+          mgmt_iface: eno1
+          n3_iface: eno2
+          n3_ip: 10.3.0.2
+          n6_iface: eno3
+          n6_ip: 10.6.0.2
+          upf_cpus: "2-3"
+          reserved_cpus: "0-1"

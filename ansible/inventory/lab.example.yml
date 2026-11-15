@@ -1,0 +1,32 @@
+# Example inventory: university lab servers (RNF-03 portability check).
+# Same variable contract as home.example.yml; only values change.
+all:
+  vars:
+    bench_profile: lab
+    mgmt_cidr: CHANGE_ME
+    n3_cidr: 10.3.0.0/24
+    n6_cidr: 10.6.0.0/24
+    ue_pool_e2e: 10.45.0.0/16
+    ue_pool_bench: 17.0.0.0/24
+    power_source: wall   # or kwollect-like API if the lab has one
+    wall_meter_url: CHANGE_ME
+  children:
+    generator:
+      hosts:
+        gen:
+          ansible_host: CHANGE_ME
+          n3_iface: CHANGE_ME
+          n3_ip: 10.3.0.1
+          n6_iface: CHANGE_ME
+          n6_ip: 10.6.0.1
+    dut:
+      hosts:
+        dut:
+          ansible_host: CHANGE_ME
+          mgmt_iface: CHANGE_ME
+          n3_iface: CHANGE_ME
+          n3_ip: 10.3.0.2
+          n6_iface: CHANGE_ME
+          n6_ip: 10.6.0.2
+          upf_cpus: "2-3"
+          reserved_cpus: "0-1"

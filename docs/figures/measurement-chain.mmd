@@ -1,0 +1,27 @@
+%% Measurement chain: where each signal originates and where it is consumed.
+flowchart TB
+  subgraph DUTN["DUT node"]
+    PKG["RAPL package counter<br/>/sys/class/powercap"]
+    S["RAPL sampler (1 Hz, wrap-safe)"]
+    K["Kepler DaemonSet"]
+    NE["node-exporter"]
+    IF["N3/N6 interface counters"]
+    PKG --> S
+    PKG --> K
+  end
+  EXT["External power<br/>Kwollect wattmetre_power_watt (1 s)<br/>or wall meter (≥1 Hz)"]
+  subgraph GENN["Generator node"]
+    P["Prometheus"]
+    G["Generator + sink counters"]
+    L["Latency probe"]
+    H["Harness: trim to steady window"]
+  end
+  S --> P
+  K --> P
+  NE --> P
+  P --> H
+  IF --> H
+  EXT --> H
+  G --> H
+  L --> H
+  H --> OUT["manifest.yaml · series.csv.gz · results.csv"]

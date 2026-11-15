@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wpg-harness"
+version = "0.0.1.dev0"
+description = "Measurement harness for watts-per-gigabit: runs one energy-per-bit point for a 5G UPF on Kubernetes."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Bryan Cucho" }]
+keywords = ["5G", "UPF", "energy", "RAPL", "Kepler", "benchmark"]
+classifiers = [
+  "Development Status :: 1 - Planning",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: System :: Networking",
+  "Topic :: System :: Benchmark",
+]
+# Dependencies are intentionally empty until stage 2; they will be pinned.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/BryanTxz10/watts-per-gigabit"
+Documentation = "https://github.com/BryanTxz10/watts-per-gigabit/tree/main/docs"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

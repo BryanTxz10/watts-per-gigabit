@@ -17,15 +17,16 @@ measure it. That is the generator/DUT separation RFC 8172 asks for.
 | Role | Grid'5000 (primary) | Home bench (secondary) |
 | --- | --- | --- |
 | Generator | One node of the reserved pair, Kadeploy-provisioned | Laptop, mains-powered, suspend disabled |
-| DUT | Second node of the pair, on a cluster with three usable Ethernet interfaces (working candidate: `servan`, Grenoble) | x86 mini PC, ≥ 4 cores, 3 × Intel I225/I226 NICs (`igc`) |
-| External power | BMC node power via Kwollect (`bmc_node_power_watt`, 5 s; less precise, excludes PSU losses). No three-interface cluster has a dedicated wattmeter (ADR-11) | Smart plug with local HTTP API, ≥ 1 Hz |
-| Cross-check power | `pdu_outlet_power_watt` where the cluster exposes it (`kinovis`); none on `servan` | None |
-| Management network | Grid'5000 site production network | Travel router, 192.168.50.0/24 |
-| N3 / N6 | KaVLAN (local VLAN) on dedicated interfaces | Direct Cat 6 cables |
+| DUT | Second node of the pair, on a wattmeter-equipped cluster with two usable Ethernet interfaces (candidates: `gros-[41-76]` Nancy, `chirop` Lille; selected by the acceptance reservation, ADR-11) | x86 mini PC, ≥ 4 cores, 3 × Intel I225/I226 NICs (`igc`) |
+| External power | Dedicated wattmeter via Kwollect (`wattmetre_power_watt`, 1 s; 20 ms on demand) | Smart plug with local HTTP API, ≥ 1 Hz |
+| Cross-check power | `bmc_node_power_watt` (5 s, less precise) | None |
+| Management network | Grid'5000 site production network, first interface | Travel router, 192.168.50.0/24 |
+| N3 / N6 | Second interface, shared: two 802.1Q sub-interfaces in KaVLAN local VLANs (or two subnets on one VLAN) | Direct Cat 6 cables, one NIC each |
 
 N3 and N6 traffic never shares a link with control or measurement traffic.
-The external power measurement sees the whole DUT, including NIC and board
-that RAPL does not see.
+On Grid'5000 N3 and N6 share one NIC (declared deviation from ADR-04, see
+section 2); at home they have one NIC each. The external power measurement
+sees the whole DUT, including NIC and board that RAPL does not see.
 
 ## 2. Network and addressing view
 
@@ -52,12 +53,25 @@ Rules:
   the PDU session container extension; 1400 B inner packets fit unfragmented.
 - **PFCP over management.** The UPF listens for N4 on its management address,
   port 8805, for both the SMF and pfcpsim.
-- **Grid'5000 specifics (ADR-11).** N3 and N6 are placed in a KaVLAN local
-  VLAN with OAR deploy jobs. KaVLAN provides L2 isolation but no performance
-  isolation, so loss and latency are recorded at every point. Node selection
-  is restricted to clusters with three usable Ethernet interfaces, so one
-  NIC per network holds on both platforms; sharing a NIC between N3 and N6
-  was considered and rejected (ADR-11).
+- **Grid'5000 specifics (ADR-11).** Wattmeter clusters expose two
+  Ethernet interfaces, so management uses the first and **N3 and N6 share
+  the second**. Sharing is controlled as follows:
+  - *Separation:* two 802.1Q sub-interfaces (`eth1.N3`, `eth1.N6`) in two
+    KaVLAN local VLANs; if a single VLAN is granted, the two subnets
+    (`10.3.0.0/24`, `10.6.0.0/24`) ride one segment. KaVLAN gives L2
+    isolation but no performance isolation, so loss and latency are
+    recorded at every point.
+  - *Counters:* N3 RX and N6 TX are read per sub-interface, or — on a
+    single segment — from `nftables` counters keyed by subnet, so they stay
+    separable for throughput and loss.
+  - *Capacity:* downlink N3 is inbound and N6 is outbound on the DUT, so
+    they use opposite directions of a full-duplex link; the generator
+    ceiling (TC-04) is nevertheless measured on the shared link and sets
+    the 100 % load level.
+  - *Fairness:* the shared NIC, driver, interrupt vectors and XDP hook are
+    the same for every UPF, so the sharing cost is a platform constant,
+    declared in the report; the home bench with three NICs checks that it
+    does not change the ranking.
 
 ## 3. Kubernetes deployment view
 
@@ -106,8 +120,8 @@ because on recent kernels `energy_uj` is readable only by root.
 | Signal | Source | Rate | Consumer |
 | --- | --- | --- | --- |
 | RAPL package energy | Own sampler on the DUT | 1 Hz | Prometheus → harness |
-| External node power | Kwollect `bmc_node_power_watt` (Grid'5000) or smart plug (home) | 5 s / ≥ 1 Hz | Harness |
-| PDU outlet power (cross-check, where available) | Kwollect `pdu_outlet_power_watt` | Per device | Harness |
+| External node power | Kwollect `wattmetre_power_watt` (Grid'5000) or smart plug (home) | 1 s / ≥ 1 Hz | Harness |
+| BMC node power (cross-check) | Kwollect `bmc_node_power_watt` | 5 s | Harness |
 | Pod and node power | Kepler | Internal interval | Prometheus → harness |
 | CPU temperature, frequency | node-exporter / hwmon | Scrape interval | Prometheus → harness |
 | N3/N6 counters | DUT interfaces or UPF | 1 Hz | Harness |

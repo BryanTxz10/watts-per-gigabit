@@ -35,7 +35,7 @@ Grid'5000 as primary platform (ADR-11). Amendments are marked **(ADR-11)**.
 | ID | Requirement | Verification | Hypotheses |
 | --- | --- | --- | --- |
 | RM-01 | Energy reference is RAPL package, sampled at 1 Hz with counter-wrap handling | Own sampler and `perf` agree within 1 % over 10 minutes | H1–H4 |
-| RM-02 | External validation with a power meter at ≥ 1 Hz **(ADR-11: on Grid'5000 the node BMC via Kwollect at 5 s is the only external source on three-interface clusters — declared deviation; wall meter at ≥ 1 Hz at home)** | External power series present in every validation run | H2, H3 |
+| RM-02 | External validation with a power meter at ≥ 1 Hz **(ADR-11: Grid'5000 wattmeter via Kwollect, 1 s period, with BMC power as secondary cross-check; wall meter at home)** | External power series present in every validation run | H2, H3 |
 | RM-03 | Baseline measured the same day, before each session **(Grid'5000: within the same OAR job)** | Baseline run with the day's date in the CSV | H1–H4 |
 | RM-04 | Two minutes of warm-up, five-minute steady window, at least three repetitions, randomized order | Harness records the order seed and the timestamps of each phase | H1–H4 |
 | RM-05 | Clocks of both hosts synchronized | chrony reports an offset below 10 ms | H1–H4 |

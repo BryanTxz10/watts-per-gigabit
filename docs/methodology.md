@@ -76,7 +76,7 @@ report (E3.4) and before the measurement campaign.
    unreproducible data.
 2. A validated dataset (CC BY 4.0) of UPF power, throughput, loss and latency
    on server-class hardware, with RAPL package energy cross-checked against
-   node power from the platform's BMC.
+   node power from the platform's dedicated wattmeter.
 3. The first error analysis of Kepler per-pod attribution on a telco data
    plane, reported as a reproducible issue to the Kepler maintainers.
 4. Findings on CPU-level mitigations with their SLA cost, reported to the UPF
@@ -136,25 +136,29 @@ pages listed in section 10.
 
 | Aspect | Plan | Source |
 | --- | --- | --- |
-| Reservation | OAR jobs with `-t deploy` (required by KaVLAN and Kadeploy) and `-t exotic` (required by `servan`); short daytime jobs for development and the acceptance check; night/weekend advance reservations (`oarsub -r`) for the matrix, within the usage policy's daytime quota rules. | Grid5000:UsagePolicy, KaVLAN, Grenoble:Hardware |
-| Node selection | Restricted to clusters with **three usable Ethernet interfaces**, so management, N3 and N6 each keep a dedicated NIC (ADR-04). Only `servan` (Grenoble, 2 nodes), `kinovis` (Grenoble, `abaca` production queue) and `vianden` (Luxembourg, 1 node) qualify. `servan` is the working candidate; `kinovis` is the fallback if production-queue access is granted; `vianden` is excluded (single node). **None of the three has a dedicated wattmeter**; all expose `bmc_node_power_watt`. Confirmed by the acceptance reservation before G1. | Hardware ("Nodes with several Ethernet interfaces"), Grenoble:Hardware, Luxembourg:Hardware, Monitoring Using Kwollect |
-| Isolation | N3 and N6 interfaces in a KaVLAN **local** VLAN; management on the site production network. KaVLAN provides L2 isolation but **no performance isolation** — inter-switch links may be shared on hierarchical sites — so loss and p99 latency are recorded at every point. | KaVLAN |
-| Power collection | `bmc_node_power_watt` (period 5000 ms) as the external reference on the selected clusters, pulled from the Kwollect API for the job window and aligned to the 5 min steady window (≥ 60 samples per point). The tutorial documents BMC readings as less precise than wattmeters and PDUs and as excluding PSU losses; this is a declared limitation (section 7). `wattmetre_power_watt` (1000 ms, 20 ms on demand) exists only on one- and two-interface clusters and is not used. | Energy consumption monitoring tutorial, Monitoring Using Kwollect |
+| Reservation | OAR jobs with `-t deploy` (required by KaVLAN and Kadeploy), plus `-t exotic` only if the selected cluster requires it (neither `gros` nor `chirop` does); on `gros` the job pins nodes 41–76; short daytime jobs for development and the acceptance check; night/weekend advance reservations (`oarsub -r`) for the matrix, within the usage policy's daytime quota rules. | Grid5000:UsagePolicy, KaVLAN, Nancy:Hardware, Lille:Hardware |
+| Node selection | Restricted to clusters with a **dedicated wattmeter** (`wattmetre_power_watt`) and **at least two usable Ethernet interfaces**: management on the first, N3 and N6 sharing the second (declared deviation from ADR-04, ADR-11). Candidates on paper: `gros-[41-76]` (Nancy, 2 × 25 G `mlx5_core`) and `chirop` (Lille, 2 × 25 G `bnxt_en`); `neowise` (Lyon) only as last resort (GPU idle power, second NIC without KaVLAN). The three-interface clusters (`servan`, `kinovis`, `vianden`) have no wattmeter and are rejected (ADR-11). The acceptance reservation before G1 selects the cluster. | Hardware ("Nodes with several Ethernet interfaces"), Nancy:Hardware, Lille:Hardware, Lyon:Hardware, Monitoring Using Kwollect |
+| Isolation | N3 and N6 as two 802.1Q sub-interfaces of the second NIC in two KaVLAN **local** VLANs (or two subnets on one VLAN if only one is granted); management on the site production network, first NIC. Per-sub-interface (or per-subnet `nftables`) counters keep N3 and N6 separable. KaVLAN provides L2 isolation but **no performance isolation** — inter-switch links may be shared on hierarchical sites — so loss and p99 latency are recorded at every point. | KaVLAN |
+| Power collection | `wattmetre_power_watt` (period 1000 ms; 20 ms on demand with `-t monitor='wattmetre_power_watt'` for selected runs) as the external reference, pulled from the Kwollect API for the job window and aligned to the 5 min steady window (≥ 300 samples per point). `bmc_node_power_watt` (5000 ms) is collected as a secondary cross-check, as the tutorial recommends; it is less precise and excludes PSU losses. | Energy consumption monitoring tutorial, Monitoring Using Kwollect |
 | Reproducibility | Kadeploy3 environment pinned by name/version; OAR job ID, KaVLAN ID, node names and environment recorded in `manifest.yaml`. | Kadeploy / Getting Started |
 | Obligations | Official acknowledgement in every publication; deposit in HAL in the "GRID5000" collaboration; usage reports on request. | Grid5000:UsagePolicy |
 
 Workflow (diagram: [`figures/grid5000-workflow.mmd`](figures/grid5000-workflow.mmd)):
-reserve → deploy → attach N3/N6 to the VLAN → configure with
+reserve → deploy → attach the second NIC (N3/N6 sub-interfaces) to the
+VLAN(s) → configure with
 `ansible/inventory/grid5000.yml` → baseline TC-01 → campaign → pull Kwollect
 series → archive run directories off-node → release.
 
-Risks: `servan` has only two nodes and requires `-t exotic`, so a single
-other user blocks the pair; usage-policy limits on long weekday jobs; no
-BIOS access (turbo/C-state control only through the kernel); shared
-inter-switch links; BMC power at 5 s is a coarse external reference; AMD
-RAPL and Kepler's support for it must be confirmed in the acceptance job.
-Mitigations: advance reservations, per-UPF jobs that fit one night,
-manifest-based resume, `kinovis` as fallback.
+Risks: N3 and N6 share one NIC, so the shared link sets the load ceiling
+and the sharing cost is part of every measurement; Nancy is a hierarchical
+site with shared inter-switch links; the Kwollect metric table omits `gros`
+for `wattmetre_power_watt` although the page notes list gros-[41-76];
+`chirop` has only five wattmeter nodes; usage-policy limits on long weekday
+jobs; no BIOS access (turbo/C-state control only through the kernel).
+Mitigations: TC-04 ceiling measured on the shared link, identical sharing
+for every UPF and a three-NIC cross-check on the home bench; advance
+reservations, per-UPF jobs that fit one night, manifest-based resume;
+`chirop` and `gros` as mutual fallbacks, decided by the acceptance job.
 
 ### 3.2 Home bench — secondary
 
@@ -171,13 +175,13 @@ behaviour of a small enclosure.
 
 | Criterion | Grid'5000 | Home bench |
 | --- | --- | --- |
-| Hardware class | Server (`servan`: 2 × AMD EPYC 7352, 25/10 GbE Intel E810) | Consumer mini PC, 2.5 GbE |
-| External power | BMC node power via Kwollect, 5 s, less precise, excludes PSU losses | Smart plug, ~1 Hz, uncalibrated |
-| RAPL | Expected (AMD Zen 2); confirmed in acceptance job | Yes (verify on receipt) |
-| Networks | Three dedicated NICs (management, N3, N6) | Three dedicated NICs |
+| Hardware class | Server (`gros`: 1 × Intel Xeon Gold 5220, 2 × 25 GbE ConnectX-4 Lx; or `chirop`: 2 × Intel Xeon Platinum 8358, 2 × 25 GbE BCM57414) | Consumer mini PC, 2.5 GbE |
+| External power | Dedicated wattmeter via Kwollect, 1 s (20 ms on demand); BMC at 5 s as cross-check | Smart plug, ~1 Hz, uncalibrated |
+| RAPL | Expected (Intel Xeon); confirmed in acceptance job | Yes (verify on receipt) |
+| Networks | Two NICs: management on the first, N3 and N6 sharing the second (VLANs/subnets) | Three dedicated NICs |
 | BIOS control | No | Yes |
 | Availability | Reservation windows, usage policy | Always |
-| N3/N6 isolation | KaVLAN, L2 only | Direct cables |
+| N3/N6 isolation | Two KaVLAN VLANs on one shared NIC, L2 only | Direct cables, one NIC each |
 | Reproducibility by others | High (same cluster + Kadeploy env) | Medium (same model required) |
 | Publication role | All published results | Method cross-check, development |
 
@@ -191,7 +195,8 @@ details in [`architecture.md`](architecture.md), section 4.
 | Source | What | Rate | Notes |
 | --- | --- | --- | --- |
 | RAPL sampler (own) | Package energy counter, wrap-corrected | 1 Hz | Validated against `perf` within 1 % (RM-01); runs as root |
-| External power | Kwollect `bmc_node_power_watt` (Grid'5000) or wall meter (home) | 5 s / ≥ 1 Hz | Covers NIC, memory, board (RM-02); BMC excludes PSU losses |
+| External power | Kwollect `wattmetre_power_watt` (Grid'5000) or wall meter (home) | 1 s / ≥ 1 Hz | Covers NIC, memory, board (RM-02) |
+| BMC power (cross-check) | Kwollect `bmc_node_power_watt` (Grid'5000 only) | 5 s | Secondary; excludes PSU losses |
 | Kepler | Node and pod power | Internal interval | Object of study; scrape aligned to its interval |
 | Interface counters | N3 RX, N6 TX on the DUT; sink RX | 1 Hz | Throughput and loss |
 | Latency probe | p50/p99 through the UPF | Per run | SLA input (TC-11) |
@@ -252,9 +257,10 @@ gate-G3 condition.
 
 Threats and controls are tabulated in [`test-plan.md`](test-plan.md).
 Declared deviations: ETSI ambient and meter requirements (on Grid'5000 the
-external meter is the node BMC at 5 s, less precise than a wattmeter and
-excluding PSU losses; at home an uncalibrated smart plug), RFC 2544
-frame-size count and software generator.
+wattmeter's accuracy class is reported from the testbed documentation when
+available; at home an uncalibrated smart plug), N3 and N6 sharing one NIC on
+Grid'5000 (ADR-04 relaxed by ADR-11), RFC 2544 frame-size count and software
+generator.
 
 - Only open-source software; all code Apache-2.0, data CC BY 4.0.
 - Grid'5000 usage policy respected (queues, quotas, frontends for light
@@ -286,15 +292,18 @@ Diagram: [`figures/stages-and-gates.mmd`](figures/stages-and-gates.mmd).
 | Paper track | See below | — | Nov 2026–Apr/Jun 2027 |
 
 **E1.7 — Grid'5000 acceptance reservation (before G1).** One short daytime
-job on the working candidate (`servan`, `-t deploy -t exotic`) with a
+job per candidate cluster (`gros-[41-76]` and `chirop`, `-t deploy`) with a
 minimal Kadeploy environment, to validate the design assumptions that no
-wiki page can confirm: RAPL package energy readable on both sockets
-(`/sys/class/powercap`), `ethtool -i` and link state on the three
-interfaces, a native XDP program loaded on the N3 NIC, the KaVLAN attach
-procedure, and `bmc_node_power_watt` retrieved from Kwollect for the job
-window. Pass: all five checks succeed. Fail: switch to `kinovis` (if
-`abaca` access is available) or reopen ADR-11. The result is recorded in
-the logbook and G1 is held only after it.
+wiki page can confirm: `wattmetre_power_watt` retrieved from Kwollect for
+the job window on the DUT node, RAPL package energy readable on every
+socket (`/sys/class/powercap`), `ethtool -i` and link state on both
+interfaces, the second interface attached to KaVLAN with the N3 and N6
+sub-interfaces, a native XDP program loaded on it, and
+`bmc_node_power_watt` retrieved as cross-check. Pass: all six checks
+succeed; among passing clusters the one with the lowest idle-power
+variation is selected. Fail on both: `neowise` as last resort or reopen
+ADR-11. The result is recorded in the logbook and G1 is held only after
+it.
 
 **Paper track (no external deadline; venue to be chosen).** Month-level
 targets over five to seven months:

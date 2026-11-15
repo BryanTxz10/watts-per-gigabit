@@ -3,9 +3,11 @@
 ## Status
 
 Amended by [ADR-11](0011-grid5000-as-primary-measurement-platform.md): on
-Grid'5000 the management network is the site's production network and N3/N6
-isolation is provided by KaVLAN; the travel router applies to the home bench
-only. Originally proposed October 2026.
+Grid'5000 the management network is the site's production network, and N3
+and N6 share the node's second NIC as separate KaVLAN VLANs or subnets,
+because every wattmeter-equipped cluster exposes at most two usable Ethernet
+interfaces; the travel router and one NIC per network apply to the home
+bench only. Originally proposed October 2026.
 
 ## Context
 
@@ -21,14 +23,19 @@ Three networks that share no link: a management network, N3 and N6.
 
 - Home bench: management on a dedicated travel router (192.168.50.0/24); N3
   and N6 on direct cables between generator and DUT.
-- Grid'5000 (ADR-11): management on the site network; N3 and N6 on dedicated
-  interfaces placed in a KaVLAN local VLAN.
+- Grid'5000 (ADR-11): management on the site network, first NIC; N3 and N6
+  as two 802.1Q sub-interfaces of the second NIC in KaVLAN local VLANs (or
+  two subnets on one VLAN). Declared deviation: N3 and N6 share a link, but
+  never with management or control traffic.
 
 ## Consequences
 
 - The home bench moves to a lab without IP reconfiguration.
 - On Grid'5000, KaVLAN gives L2 isolation but no performance isolation, so
   loss and latency are recorded at every point.
+- On Grid'5000 the shared N3/N6 NIC sets the load ceiling (measured by
+  TC-04) and its cost is identical for every UPF; the home bench, with one
+  NIC per network, checks that sharing does not change the UPF ranking.
 
 ## Alternatives rejected
 

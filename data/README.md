@@ -33,7 +33,7 @@ any manifest field is missing.
 | `run_id` | string, `YYYYMMDDTHHMMSSZ-<upf>-<mode>-<load>-<pkt>-r<rep>` | Harness |
 | `git_commit` | 40-hex | Harness |
 | `platform` | `grid5000` \| `home` \| `lab` | Inventory |
-| `site`, `cluster`, `node_gen`, `node_dut`, `oar_job_id`, `kavlan_id` | string / int | Grid'5000 only; null elsewhere |
+| `site`, `cluster`, `node_gen`, `node_dut`, `oar_job_id`, `kavlan_id_n3`, `kavlan_id_n6` | string / int | Grid'5000 only; null elsewhere (the two VLAN IDs are equal when N3 and N6 share one VLAN) |
 | `kadeploy_env` | string | Grid'5000 only |
 | `image_digests` | map of pod → `sha256:…` | Kubernetes |
 | `kernel`, `k3s_version`, `kepler_version` | string | DUT |
@@ -58,8 +58,8 @@ any manifest field is missing.
 | `phase` | `warmup` \| `steady` \| `cooldown` | Harness |
 | `e_rapl_pkg_uj` | µJ, monotonic, wrap-corrected | RAPL sampler |
 | `p_rapl_w` | W | Derived at sample time from consecutive RAPL readings |
-| `p_ext_w` | W | Kwollect `bmc_node_power_watt` (Grid'5000, 5 s, forward-filled to 1 Hz) or wall meter (home) |
-| `p_pdu_w` | W or empty | Kwollect `pdu_outlet_power_watt` where the cluster exposes it (cross-check) |
+| `p_ext_w` | W | Kwollect `wattmetre_power_watt` (Grid'5000, 1 s) or wall meter (home) |
+| `p_bmc_w` | W or empty | Kwollect `bmc_node_power_watt` (Grid'5000 secondary cross-check, 5 s, forward-filled to 1 Hz) |
 | `p_kepler_pod_w`, `p_kepler_node_w` | W | Prometheus |
 | `rx_pkts_n3`, `tx_pkts_n6`, `rx_bytes_n3`, `tx_bytes_n6` | count / bytes | DUT interface counters |
 | `sink_rx_pkts`, `sink_rx_bytes` | count / bytes | Sink in namespace `dn` |
@@ -81,7 +81,7 @@ any manifest field is missing.
 | `oct_n3_ul`, `oct_n3_dl` | bytes | UPF counters or N3 interface |
 | `lat_p50_us`, `lat_p99_us` | µs | Latency probe |
 | `p_rapl_w`, `p_base_rapl_w` | W | RAPL sampler (run, same-day baseline) |
-| `p_ext_w`, `p_base_ext_w` | W | BMC via Kwollect (Grid'5000), or wall meter (home) |
+| `p_ext_w`, `p_base_ext_w` | W | Wattmeter via Kwollect (Grid'5000), or wall meter (home) |
 | `p_kepler_pod_w`, `p_kepler_node_w` | W | Prometheus |
 | `temp_cpu_c`, `temp_ambient_c` | °C | hwmon; thermometer or null |
 | `governor`, `turbo`, `cstates`, `upf_cpus` | text | Manifest (read-back values) |

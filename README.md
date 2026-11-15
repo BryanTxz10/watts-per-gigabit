@@ -48,7 +48,7 @@ Inferred from the design document; refined after integration.
 
 | Platform | Role | External power |
 | --- | --- | --- |
-| [Grid'5000](https://www.grid5000.fr/) | **Primary** — calibration and every published measurement ([ADR-11](docs/adr/0011-grid5000-as-primary-measurement-platform.md)); nodes with three dedicated NICs | Node power from the BMC via Kwollect (`bmc_node_power_watt`, 5 s) |
+| [Grid'5000](https://www.grid5000.fr/) | **Primary** — calibration and every published measurement ([ADR-11](docs/adr/0011-grid5000-as-primary-measurement-platform.md)); wattmeter-equipped nodes, N3/N6 sharing the second NIC | Dedicated wattmeter via Kwollect (`wattmetre_power_watt`, 1 s) |
 | Home bench (laptop + mini PC with 3 × Intel I226) | **Secondary** — development, calibration between reservations, consumer-hardware cross-check ([ADR-02](docs/adr/0002-dedicated-mini-pc-as-dut.md)) | Smart plug, ≥ 1 Hz |
 
 ```mermaid
@@ -67,7 +67,7 @@ flowchart LR
     RAPL["RAPL sampler · node-exporter"]
   end
 
-  PWR["External power<br/>Kwollect BMC / wall meter"]
+  PWR["External power<br/>Kwollect wattmeter / wall meter"]
 
   CP -- "N4 PFCP (mgmt)" --> UPF
   TG -- "N3 GTP-U" --> UPF
@@ -85,9 +85,9 @@ Full description: [`docs/architecture.md`](docs/architecture.md).
 
 - **Reference:** RAPL package energy, read by the project's own 1 Hz sampler
   with counter-wrap handling, validated against `perf` within 1 %.
-- **Validation:** external node power (Grid'5000 BMC through Kwollect, or
-  a wall meter at home) covering NIC, memory and board that RAPL does not
-  see. Neither meter is laboratory-grade; this is declared as a deviation.
+- **Validation:** external node power (Grid'5000 wattmeter through Kwollect,
+  or a wall meter at home) covering NIC, memory and board that RAPL does not
+  see.
 - **Object of study:** Kepler. Its node total must match RAPL; its per-pod
   apportionment is compared with RAPL ΔP.
 - **Method:** ETSI ES 203 539 laboratory method — power under load minus

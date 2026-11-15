@@ -16,7 +16,7 @@ stage 5.
 | Module | Responsibility | Requirement |
 | --- | --- | --- |
 | `rapl_sampler` | Reads `/sys/class/powercap/intel-rapl:0/energy_uj` at 1 Hz, handles counter wrap, cross-checked against `perf` within 1 %. Runs as root. | RM-01, TC-02 |
-| `power_source` | Pluggable external power reader: Kwollect API (`bmc_node_power_watt`; `pdu_outlet_power_watt` where available) on Grid'5000, HTTP smart plug at home. | RM-02 |
+| `power_source` | Pluggable external power reader: Kwollect API (`wattmetre_power_watt`, plus `bmc_node_power_watt` as cross-check) on Grid'5000, HTTP smart plug at home. | RM-02 |
 | `prom_fetch` | Pulls Kepler pod/node power and node-exporter series from Prometheus for the steady window. | TC-09 |
 | `pcap_gen` | Scapy generator of GTP-U pcaps at 128 B and 1400 B inner payloads for the benchmark mode. | RF-03, RF-04 |
 | `traffic` | Drives `tcpreplay` (benchmark) or `iperf3` through UERANSIM (end-to-end); reads generator and sink counters. | RF-02, RF-03 |

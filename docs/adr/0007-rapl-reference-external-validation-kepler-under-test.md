@@ -15,10 +15,10 @@ board.
 
 - **Reference:** RAPL package energy, read by the project's own sampler at
   1 Hz with counter-wrap handling, independent of Kepler.
-- **Validation:** external node power — on Grid'5000 the node BMC through
-  Kwollect (`bmc_node_power_watt`, 5 s; the selected three-interface
-  clusters have no dedicated wattmeter, ADR-11), on the home bench a wall
-  meter at ≥ 1 Hz — covering what RAPL does not see.
+- **Validation:** external node power at ≥ 1 Hz — the Grid'5000 wattmeter
+  through Kwollect (`wattmetre_power_watt`, 1 s; `bmc_node_power_watt` as
+  secondary cross-check) or a wall meter on the home bench — covering what
+  RAPL does not see.
 - **Object of study:** Kepler. Its node total must match RAPL; its per-pod
   apportionment is compared to RAPL ΔP (TC-09).
 
